@@ -21,8 +21,8 @@ function shoot(explosive) {
   if (P.cd > 0 || over) return;
   if (explosive) { if (expl < 1) return; expl--; }
   else { if (arrows < 1) return; arrows--; }
-  const angle = Math.atan2(aim.y - (P.y - 8), aim.x - P.x);
-  A.push({ x: P.x, y: P.y - 8, angle, speed: explosive ? 380 : 520, explosive, life: 1.3 });
+  const angle = Math.atan2(aim.y - (P.y - 42), aim.x - P.x);
+  A.push({ x: P.x, y: P.y - 42, angle, speed: explosive ? 380 : 520, explosive, life: 1.3 });
   P.cd = explosive ? 0.45 : 0.22; P.shoot = 0.15;
 }
 function craftExplosive() {
@@ -47,7 +47,7 @@ function spawn() {
   const s = (R() * 4) | 0, type = (R() * 4) | 0;
   const x = s < 2 ? R() * W : (s == 2 ? -20 : W + 20), y = s < 2 ? (s ? H + 20 : -20) : R() * H;
   const sp = (type == 3 ? 38 : 52 + type * 6) + R() * 14 + Math.min(score / 40, 40);
-  E.push({ x, y, type, hp: 30, sp, anim: R() * 6, flash: 0, hit: 0, size: type == 3 ? 66 : 54 });
+  E.push({ x, y, type, hp: 30, sp, anim: R() * 6, flash: 0, hit: 0, size: 82 });
 }
 
 // ---------- update ----------
@@ -77,7 +77,7 @@ function update(dt) {
       const d = dist(e, o);
       if (d < 22 && d > 0) { e.x += (e.x - o.x) / d * 40 * dt; e.y += (e.y - o.y) / d * 40 * dt; }
     }
-    if (dist(e, P) < 26 && e.hit <= 0 && P.hit <= 0) {
+    if (dist(e, P) < 30 && e.hit <= 0 && P.hit <= 0) {
       P.hp -= 8; P.hit = 0.6; e.hit = 0.8;
       if (P.hp <= 0) { P.hp = 0; over = true; overT = 0; firing = false; }
     }
@@ -86,7 +86,7 @@ function update(dt) {
   for (const a of A) {
     a.x += Math.cos(a.angle) * a.speed * dt; a.y += Math.sin(a.angle) * a.speed * dt; a.life -= dt;
     let hit = false;
-    for (const e of E) if (!e.dead && Math.hypot(a.x - e.x, a.y - (e.y - 20)) < e.size * 0.4) {
+    for (const e of E) if (!e.dead && Math.hypot(a.x - e.x, a.y - (e.y - e.size * 0.35)) < e.size * 0.3) {
       if (a.explosive) explode(a.x, a.y); else hurt(e, 10);
       hit = true; break;
     }
@@ -128,6 +128,12 @@ function sprite(img, frame, x, y, size, flip, fb) {
   else { ctx.fillStyle = fb; ctx.beginPath(); ctx.arc(0, -size / 2 + 6, size / 3, 0, 7); ctx.fill(); }
   ctx.restore();
 }
+function shadow(x, y, s) { ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(x, y + 2, s * 0.3, s * 0.07, 0, 0, 7); ctx.fill(); }
+function bow() { // arc dessiné par-dessus le sprite, orienté vers la visée
+  ctx.save(); ctx.translate(P.x, P.y - 42); ctx.rotate(Math.atan2(aim.y - (P.y - 42), aim.x - P.x));
+  ctx.lineCap = 'round'; ctx.lineWidth = 3; ctx.strokeStyle = '#ffb347'; ctx.beginPath(); ctx.arc(-2, 0, 26, -1.1, 1.1); ctx.stroke();
+  ctx.lineWidth = 1; ctx.strokeStyle = '#fff'; ctx.beginPath(); ctx.moveTo(10, -23); ctx.lineTo(P.shoot > 0 ? -8 : 10, 0); ctx.lineTo(10, 23); ctx.stroke(); ctx.restore();
+}
 function bar(x, y, w, h, pct) {
   ctx.fillStyle = '#4a0a0a'; ctx.fillRect(x, y, w, h);
   ctx.fillStyle = pct > 0.5 ? '#2ecc40' : pct > 0.25 ? '#f1c40f' : '#e74c3c'; ctx.fillRect(x, y, w * pct, h);
@@ -146,11 +152,11 @@ function draw(now) {
     if (o.p) {
       if (P.hit > 0 && ((now / 60) | 0) % 2) continue;
       const fr = P.shoot > 0 ? 3 : (P.anim | 0) % 2 ? 1 + ((P.anim / 2 | 0) % 2) : 0;
-      sprite(player, fr, P.x, P.y, 60, P.face, '#1de9b6');
+      shadow(P.x, P.y, 86); sprite(player, fr, P.x, P.y, 86, P.face, '#1de9b6'); bow();
     } else {
       const e = o.e; ctx.globalAlpha = e.flash > 0 ? 0.5 : 1;
-      sprite(enemies, e.type, e.x, e.y, e.size, P.x < e.x ? -1 : 1, '#e63946'); ctx.globalAlpha = 1;
-      bar(e.x - 14, e.y - e.size + 2, 28, 3, e.hp / 30);
+      shadow(e.x, e.y, e.size); sprite(enemies, e.type, e.x, e.y - Math.abs(Math.sin(e.anim)) * 3, e.size, P.x < e.x ? -1 : 1, '#e63946'); ctx.globalAlpha = 1;
+      bar(e.x - 14, e.y - e.size + 4, 28, 3, e.hp / 30);
     }
   }
   for (const a of A) { // flèches
