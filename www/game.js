@@ -1,91 +1,206 @@
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+(function () {
+  var cv = document.getElementById('c');
+  var ctx = cv.getContext('2d');
+  var W = 0, H = 0;
 
-let player = {x:400,y:300,angle:0,hp:1,speed:3.5};
-let bullets=[], enemies=[], blood=[], shake=0, keys={};
-let mouse={x:0,y:0};
+  function resize() {
+    W = cv.width = window.innerWidth;
+    H = cv.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
 
-// Controles
-window.addEventListener('keydown',e=>keys[e.key.toLowerCase()]=true);
-window.addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
-window.addEventListener('mousemove',e=>{mouse.x=e.touches?e.touches[0].clientX:e.clientX; mouse.y=e.touches?e.touches[0].clientY:e.clientY;});
-window.addEventListener('touchmove',e=>{mouse.x=e.touches[0].clientX; mouse.y=e.touches[0].clientY;});
-canvas.addEventListener('mousedown',shoot);
-canvas.addEventListener('touchstart',shoot);
+  var player = { x: W / 2, y: H / 2, r: 16, speed: 220, angle: 0 };
+  var bullets = [];
+  var enemies = [];
+  var score = 0;
+  var joy = { id: null, sx: 0, sy: 0, dx: 0, dy: 0 };
+  var last = performance.now();
 
-// Creer 8 ennemis
-for(let i=0;i<8;i++) enemies.push({x:Math.random()*canvas.width, y:Math.random()*canvas.height, angle:0, speed:1.2+Math.random()});
+  function spawnEnemy() {
+    var x, y, tries = 0;
+    do {
+      x = Math.random() * W;
+      y = Math.random() * H;
+      tries++;
+    } while (Math.hypot(x - player.x, y - player.y) < 250 && tries < 50);
+    return { x: x, y: y, r: 14, speed: 70 + Math.random() * 40 };
+  }
 
-function shoot(){
-  bullets.push({x:player.x, y:player.y, angle:player.angle, speed:12, owner:'player'});
-  shake=8;
-  // son visuel
-}
+  function resetGame() {
+    player.x = W / 2;
+    player.y = H / 2;
+    bullets = [];
+    enemies = [];
+    for (var i = 0; i < 5; i++) enemies.push(spawnEnemy());
+    score = 0;
+  }
 
-function loop(){
-  // shake
-  ctx.save();
-  if(shake>0){ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake); shake*=0.9;}
+  function shoot(tx, ty) {
+    var a = Math.atan2(ty - player.y, tx - player.x);
+    player.angle = a;
+    bullets.push({
+      x: player.x + Math.cos(a) * player.r,
+      y: player.y + Math.sin(a) * player.r,
+      vx: Math.cos(a) * 600,
+      vy: Math.sin(a) * 600,
+      r: 4,
+      life: 1.5
+    });
+  }
 
-  // fond quadrillé néon
-  ctx.fillStyle='#0e0e1a'; ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.strokeStyle='#1a1a3a'; ctx.lineWidth=1;
-  for(let i=0;i<canvas.width;i+=40){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke();}
-  for(let i=0;i<canvas.height;i+=40){ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(canvas.width,i);ctx.stroke();}
-
-  // sang
-  blood.forEach(b=>{ctx.fillStyle=`rgba(255,0,80,${b.a})`; ctx.fillRect(b.x,b.y,4,4);});
-
-  // player
-  player.angle = Math.atan2(mouse.y-player.y, mouse.x-player.x);
-  if(keys['z']||keys['w']||keys['ArrowUp']) player.y-=player.speed;
-  if(keys['s']||keys['ArrowDown']) player.y+=player.speed;
-  if(keys['q']||keys['a']||keys['ArrowLeft']) player.x-=player.speed;
-  if(keys['d']||keys['ArrowRight']) player.x+=player.speed;
-
-  ctx.save(); ctx.translate(player.x,player.y); ctx.rotate(player.angle);
-  ctx.fillStyle='#00ffff'; ctx.fillRect(-10,-7,20,14);
-  ctx.fillStyle='#ffffff'; ctx.fillRect(8,-2,14,4); // arme
-  ctx.restore();
-
-  // enemies
-  enemies.forEach(e=>{
-    e.angle = Math.atan2(player.y-e.y, player.x-e.x);
-    e.x += Math.cos(e.angle)*e.speed;
-    e.y += Math.sin(e.angle)*e.speed;
-    ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(e.angle);
-    ctx.fillStyle='#ff0055'; ctx.fillRect(-9,-7,18,14);
-    ctx.fillStyle='#ffff00'; ctx.fillRect(5,-2,10,4);
-    ctx.restore();
-
-    // si touche player
-    if(Math.hypot(player.x-e.x, player.y-e.y)<18){
-      alert('WASTED - RESTART'); location.reload();
+  cv.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      if (t.clientX < W * 0.4 && joy.id === null) {
+        joy.id = t.identifier;
+        joy.sx = t.clientX;
+        joy.sy = t.clientY;
+        joy.dx = 0;
+        joy.dy = 0;
+      } else {
+        shoot(t.clientX, t.clientY);
+      }
     }
+  }, { passive: false });
+
+  cv.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var t = e.changedTouches[i];
+      if (t.identifier === joy.id) {
+        var dx = t.clientX - joy.sx;
+        var dy = t.clientY - joy.sy;
+        var d = Math.hypot(dx, dy);
+        var max = 60;
+        if (d > max) { dx = dx / d * max; dy = dy / d * max; }
+        joy.dx = dx / max;
+        joy.dy = dy / max;
+      }
+    }
+  }, { passive: false });
+
+  function endTouch(e) {
+    e.preventDefault();
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === joy.id) {
+        joy.id = null;
+        joy.dx = 0;
+        joy.dy = 0;
+      }
+    }
+  }
+  cv.addEventListener('touchend', endTouch, { passive: false });
+  cv.addEventListener('touchcancel', endTouch, { passive: false });
+
+  cv.addEventListener('mousedown', function (e) {
+    shoot(e.clientX, e.clientY);
   });
 
-  // bullets
-  bullets.forEach((b,i)=>{
-    b.x+=Math.cos(b.angle)*b.speed; b.y+=Math.sin(b.angle)*b.speed;
-    ctx.fillStyle=b.owner=='player'?'#00ffff':'#ffff00';
-    ctx.beginPath(); ctx.arc(b.x,b.y,3,0,Math.PI*2); ctx.fill();
+  function update(dt) {
+    player.x += joy.dx * player.speed * dt;
+    player.y += joy.dy * player.speed * dt;
+    player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+    player.y = Math.max(player.r, Math.min(H - player.r, player.y));
 
-    // collision
-    if(b.owner=='player'){
-      enemies.forEach((e,j)=>{
-        if(Math.hypot(b.x-e.x,b.y-e.y)<15){
-          for(let k=0;k<20;k++) blood.push({x:e.x,y:e.y,a:1});
-          enemies.splice(j,1); bullets.splice(i,1);
-          if(enemies.length==0){alert('FLOOR CLEAR!'); location.reload();}
+    var i, j;
+    for (i = bullets.length - 1; i >= 0; i--) {
+      var b = bullets[i];
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.life -= dt;
+      if (b.life <= 0 || b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+        bullets.splice(i, 1);
+      }
+    }
+
+    for (j = 0; j < enemies.length; j++) {
+      var en = enemies[j];
+      var a = Math.atan2(player.y - en.y, player.x - en.x);
+      en.x += Math.cos(a) * en.speed * dt;
+      en.y += Math.sin(a) * en.speed * dt;
+      if (Math.hypot(player.x - en.x, player.y - en.y) < player.r + en.r) {
+        resetGame();
+        return;
+      }
+    }
+
+    for (i = bullets.length - 1; i >= 0; i--) {
+      for (j = 0; j < enemies.length; j++) {
+        if (Math.hypot(bullets[i].x - enemies[j].x, bullets[i].y - enemies[j].y) < bullets[i].r + enemies[j].r) {
+          bullets.splice(i, 1);
+          enemies[j] = spawnEnemy();
+          score++;
+          break;
         }
-      });
+      }
     }
-  });
-  bullets = bullets.filter(b=>b.x>0&&b.x<canvas.width&&b.y>0&&b.y<canvas.height);
+  }
 
-  document.getElementById('count').innerText = enemies.length;
-  ctx.restore();
+  function draw() {
+    ctx.fillStyle = '#12002b';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = 'rgba(255,45,149,0.12)';
+    ctx.lineWidth = 1;
+    for (var x = 0; x < W; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (var y = 0; y < H; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    ctx.fillStyle = '#00ffff';
+    for (var j = 0; j < enemies.length; j++) {
+      ctx.beginPath();
+      ctx.arc(enemies[j].x, enemies[j].y, enemies[j].r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#ffffff';
+    for (var i = 0; i < bullets.length; i++) {
+      ctx.beginPath();
+      ctx.arc(bullets[i].x, bullets[i].y, bullets[i].r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#ff2d95';
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(player.x + Math.cos(player.angle) * (player.r + 8), player.y + Math.sin(player.angle) * (player.r + 8));
+    ctx.stroke();
+
+    if (joy.id !== null) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(joy.sx, joy.sy, 60, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,45,149,0.6)';
+      ctx.beginPath();
+      ctx.arc(joy.sx + joy.dx * 60, joy.sy + joy.dy * 60, 22, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText('SCORE ' + score, 16, 30);
+  }
+
+  function loop(now) {
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  resetGame();
   requestAnimationFrame(loop);
-}
-loop();
+})();
