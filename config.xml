@@ -15,4 +15,8 @@
         <preference name="android-targetSdkVersion" value="34" />
         <preference name="BackgroundColor" value="0xff000000" />
     </platform>
+<preference name="android-minSdkVersion" value="24" />
+<preference name="android-targetSdkVersion" value="34" />
+<preference name="GradleVersion" value="8.7" />
+<preference name="AndroidGradlePluginVersion" value="8.3.0" />
 </widget>
