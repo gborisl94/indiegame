@@ -1,1 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
+<widget id="com.indie.miami" version="1.0.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+    <name>INDIE MIAMI</name>
+    <description>Top-down shooter tactile</description>
+    <author email="dev@indiemiami.com" href="https://example.com">INDIE MIAMI</author>
+    <content src="index.html" />
+    <platform name="android">
+        <preference name="GradleVersion" value="8.7" />
+        <preference name="AndroidGradlePluginVersion" value="8.3.0" />
+    </platform>
+</widget>
